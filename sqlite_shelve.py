@@ -2,11 +2,48 @@ import pickle
 import bz2
 import gzip
 
-import sqlite_store.connection
+import sqlite3
+
+class Connection:
+    def __init__(self, path_str=":memory:", mode="rw"):
+        if "w" not in mode:
+            import pathlib
+            uri_str = pathlib.Path(path_str).absolute().as_uri() + "?mode=ro"
+            self._conn = sqlite3.Connection(uri_str, check_same_thread=False, uri=True)
+        else:
+            self._conn = sqlite3.Connection(path_str, check_same_thread=False)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def close(self):
+        self.flush()
+        self._conn.close()
+
+    def flush(self):
+        self._conn.commit()
+
+    def shelve(self, shelve_name: str = None, mode="rw") -> "SqliteShelve":
+        if "w" not in mode:
+            assert shelve_name in map(lambda t:t[1], self.sqlite_schema())
+        return SqliteShelve(self._conn, table_name=shelve_name)
+
+    def sqlite_schema(self):
+        return self._conn.execute("SELECT * from sqlite_schema").fetchall()
+
+    def table_list(self):
+        """PRAGMA table_list is not always available. Use sqlite_schema instead for cross-platform"""
+        return self._conn.execute("PRAGMA table_list").fetchall()
+
+    def table_info(self, table_name):
+        return self._conn(f"PRAGMA table_info([{table_name}]);").fetchall()
 
 
 class SqliteShelve:
-    def __init__(self, _conn: "sqlite_store.connection.Connection", table_name: str = None):
+    def __init__(self, _conn: Connection, table_name: str = None):
         self.table_name = "SHELVE" if table_name is None else table_name
         self._conn = _conn
         self._conn.execute(
@@ -24,6 +61,9 @@ class SqliteShelve:
 
     def __setitem__(self, key, value):
         self._conn.execute(f"INSERT INTO {self.table_name} (NAME, DATA) VALUES (?,?)", [key, gzip.compress(pickle.dumps(value))])
+
+    def __delitem__(self, key, value):
+        self._conn.execute(f"DELETE {self.table_name} where NAME=(?)", [key, gzip.compress(pickle.dumps(value))])
 
     def __contains__(self, item):
         c, = self._conn.execute(f"SELECT COUNT(*) FROM {self.table_name} WHERE NAME=?", [item]).fetchone()
