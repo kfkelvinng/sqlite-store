@@ -1,1 +1,1 @@
-from .connection import Connection
+from .sqlite_shelve import Connection
