@@ -24,8 +24,10 @@ class Connection:
         self.close()
 
     def close(self):
-        self.flush()
-        self._conn.close()
+        if self._conn is not None:
+            self.flush()
+            self._conn.close()
+            self._conn = None
 
     def flush(self):
         self._conn.commit()
