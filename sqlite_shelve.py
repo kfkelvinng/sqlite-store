@@ -47,9 +47,12 @@ class Connection:
     def table_info(self, table_name):
         return self._conn(f"PRAGMA table_info([{table_name}]);").fetchall()
 
+from typing import TypeVar, Generic
 
-class SqliteShelve:
-    def __init__(self, _conn: Connection, table_name: str = None):
+V = TypeVar('V')
+
+class SqliteShelve(Generic[V]):
+    def __init__(self, _conn: sqlite3.Connection, table_name: str = None):
         self.table_name = "SHELVE" if table_name is None else table_name
         self._conn = _conn
         self._conn.execute(
@@ -61,7 +64,7 @@ class SqliteShelve:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._conn.flush()
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str) -> V:
         name, blb = self._conn.execute(f"SELECT NAME, DATA FROM {self.table_name} WHERE NAME=?", [item]).fetchone()
         return self._decompress(blb)
 
@@ -71,14 +74,14 @@ class SqliteShelve:
             return pickle.loads(gzip.decompress(blb))
         return pickle.loads(bz2.decompress(blb))
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: V):
         self._conn.execute(f"INSERT INTO {self.table_name} (NAME, DATA) VALUES (?,?)",
                            [key, gzip.compress(pickle.dumps(value))])
 
     def __delitem__(self, key, value):
         self._conn.execute(f"DELETE {self.table_name} where NAME=(?)", [key, gzip.compress(pickle.dumps(value))])
 
-    def __contains__(self, item):
+    def __contains__(self, item: str):
         c, = self._conn.execute(f"SELECT COUNT(*) FROM {self.table_name} WHERE NAME=?", [item]).fetchone()
         return c == 1
 
