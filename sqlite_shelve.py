@@ -78,8 +78,8 @@ class SqliteShelve(Generic[V]):
         self._conn.execute(f"INSERT INTO {self.table_name} (NAME, DATA) VALUES (?,?)",
                            [key, gzip.compress(pickle.dumps(value))])
 
-    def __delitem__(self, key, value):
-        self._conn.execute(f"DELETE {self.table_name} where NAME=(?)", [key, gzip.compress(pickle.dumps(value))])
+    def __delitem__(self, key: str):
+        self._conn.execute(f"DELETE from {self.table_name} where NAME=(?)", [key])
 
     def __contains__(self, item: str):
         c, = self._conn.execute(f"SELECT COUNT(*) FROM {self.table_name} WHERE NAME=?", [item]).fetchone()
