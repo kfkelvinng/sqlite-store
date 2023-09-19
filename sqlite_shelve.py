@@ -89,6 +89,10 @@ class SqliteShelve(Generic[V]):
         c, = self._conn.execute(f"SELECT COUNT(*) FROM {self.table_name}").fetchone()
         return c
 
+    def acquire(self, key: str, value: V):
+        return self._conn.execute(f"INSERT INTO {self.table_name} (NAME, DATA) VALUES (?,?) ON CONFLICT DO NOTHING",
+                           [key, gzip.compress(pickle.dumps(value))]).rowcount == 1
+
     def keys(self):
         return map(lambda x: x[0], self._conn.execute(f"SELECT NAME FROM {self.table_name}"))
 
