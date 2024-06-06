@@ -35,7 +35,7 @@ class Connection:
     def shelve(self, shelve_name: str = None, mode="rw") -> "SqliteShelve":
         if "w" not in mode:
             assert shelve_name in map(lambda t: t[1], self.sqlite_schema())
-        return SqliteShelve(self._conn, table_name=shelve_name)
+        return SqliteShelve(self, table_name=shelve_name)
 
     def sqlite_schema(self):
         return self._conn.execute("SELECT * from sqlite_schema").fetchall()
@@ -52,9 +52,10 @@ from typing import TypeVar, Generic
 V = TypeVar('V')
 
 class SqliteShelve(Generic[V]):
-    def __init__(self, _conn: sqlite3.Connection, table_name: str = None):
+    def __init__(self, _conn_sh: "Connection", table_name: str = None):
         self.table_name = "SHELVE" if table_name is None else table_name
-        self._conn = _conn
+        self._conn = _conn_sh._conn
+        self._conn_sh = _conn_sh
         self._conn.execute(
             f"CREATE TABLE IF NOT EXISTS {self.table_name} (NAME TEXT PRIMARY KEY ON CONFLICT REPLACE, DATA BLOB)")
 
@@ -62,7 +63,7 @@ class SqliteShelve(Generic[V]):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._conn.flush()
+        self._conn_sh.flush()
 
     def __getitem__(self, item: str) -> V:
         name, blb = self._conn.execute(f"SELECT NAME, DATA FROM {self.table_name} WHERE NAME=?", [item]).fetchone()
